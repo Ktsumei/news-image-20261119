@@ -1,128 +1,186 @@
 #!/usr/bin/env python3
-"""Draw the 19 Nov 2026 world-news front page, 1024x1024, deterministic.
-No network, no randomness. Run from this directory: it writes entry.png
-beside this script. Fonts: DejaVu (system). All stories are events that
-happened, or were first reported, on Thursday 19 November 2026."""
-import os
-from PIL import Image, ImageDraw, ImageFont
+"""Draw the front page for Thursday 19 November 2026.
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "entry.png")
-FONT_DIR = "/usr/share/fonts/truetype/dejavu"
+This script renders one 1024 by 1024 PNG that sums up the day's world news.
+It uses Pillow and the DejaVu typefaces that ship with the system. There is
+no network access and no randomness, so every run produces the same bytes.
+Run it from this directory; it writes entry.png next to itself.
+"""
 
-def load(name, size):
-    return ImageFont.truetype(os.path.join(FONT_DIR, name), size)
+from pathlib import Path
 
-SERIF_B = lambda s: load("DejaVuSerif-Bold.ttf", s)
-SANS = lambda s: load("DejaVuSans.ttf", s)
-SANS_B = lambda s: load("DejaVuSans-Bold.ttf", s)
+from PIL import Image
+from PIL import ImageDraw
+from PIL import ImageFont
 
-W, H = 1024, 1024
-NAVY = (13, 38, 68)
-RED = (178, 34, 34)
-INK = (18, 18, 18)
-GREY = (96, 96, 96)
-LIGHT = (240, 243, 246)
-RULE = (205, 205, 205)
+OUTPUT = Path(__file__).resolve().parent / "entry.png"
+TYPE_DIR = Path("/usr/share/fonts/truetype/dejavu")
 
-img = Image.new("RGB", (W, H), "white")
-d = ImageDraw.Draw(img)
+PAGE = (1024, 1024)
+EDGE = 32
+COLUMN_GAP = 56
 
-def lines_for(text, fnt, max_w):
-    words = text.split()
-    out, cur = [], ""
-    for w in words:
-        trial = (cur + " " + w).strip()
-        if d.textlength(trial, font=fnt) <= max_w:
-            cur = trial
-        else:
-            if cur:
-                out.append(cur)
-            cur = w
-    if cur:
-        out.append(cur)
-    return out
+NAVY = (12, 36, 66)
+CRIMSON = (172, 32, 32)
+TEAL = (14, 92, 96)
+PLUM = (112, 44, 96)
+FOREST = (28, 110, 68)
+CHARCOAL = (26, 26, 26)
+MIDGREY = (110, 110, 110)
+PALE = (240, 243, 247)
+AMBER = (255, 205, 80)
+HAIRLINE = (205, 205, 200)
 
-def block(x, y, text, fnt, max_w, leading, color=INK):
-    for ln in lines_for(text, fnt, max_w):
-        d.text((x, y), ln, font=fnt, fill=color)
-        y += leading
-    return y
 
-# --- Masthead ---------------------------------------------------------------
-d.rectangle([0, 0, W, 148], fill=NAVY)
-d.text((32, 22), "THE WORLD IN ONE DAY", font=SERIF_B(58), fill="white")
-d.text((32, 100), "THURSDAY 19 NOVEMBER 2026  \u2022  THE DAY'S WORLD NEWS IN ONE IMAGE",
-       font=SANS_B(21), fill=(255, 210, 90))
+class FrontPage:
+    """Canvas plus the small helpers a newspaper page needs."""
 
-# --- Lead story: the Shenzhen summit ---------------------------------------
-y = 168
-d.rectangle([32, y, 42, y + 8], fill=RED)
-d.text((56, y - 6), "LEAD  \u2014  SHENZHEN", font=SANS_B(20), fill=RED)
-y += 34
-d.text((32, y), "TRUMP, XI AND PUTIN", font=SERIF_B(40), fill=INK)
-y += 48
-d.text((32, y), "MEET FACE TO FACE", font=SERIF_B(40), fill=INK)
-y += 56
-y = block(32, y,
-    "Donald Trump, Xi Jinping and Vladimir Putin meet in Shenzhen today in the "
-    "first three-way summit of the leaders of the world's three largest nuclear "
-    "powers. Nuclear arms and the Iran war top the agenda; Ukraine is off it.",
-    SANS(22), 960, 28)
-d.line([32, y + 12, 992, y + 12], fill=RULE, width=2)
+    def __init__(self):
+        self.img = Image.new("RGB", PAGE, "white")
+        self.draw = ImageDraw.Draw(self.img)
 
-# --- Six stories in a 2 x 3 grid -------------------------------------------
-stories = [
-    ("CULTURE", (140, 40, 90), "GTA VI ROLLS OUT WORLDWIDE",
-     "After 13 years, Rockstar's Grand Theft Auto VI unlocks at midnight today in "
-     "each market, starting in New Zealand. Critics gave it 99 on Metacritic; "
-     "pre-orders passed $1.65 billion."),
-    ("WEATHER", (0, 110, 130), "CYCLONE AKVAN BEARS DOWN ON INDIA",
-     "Cyclone Akvan is set to cross India's east coast between Machilipatnam and "
-     "Puri, bringing heavy rain and strong winds."),
-    ("DIPLOMACY", (15, 90, 140), "CANADA RECALIBRATES CHINA TIES",
-     "Prime Minister Mark Carney says Canada is adjusting its ties with China, "
-     "aiming to strike the right deal with the United States."),
-    ("TECH", (120, 70, 140), "SENATORS WARN AI CYBER THREATS OUTPACE DEFENCES",
-     "US senators warn the White House that AI-enabled cyber threats are "
-     "outpacing America's defences, and urge faster action."),
-    ("SCIENCE", (0, 120, 90), "NASA CONFIRMS VOYAGER 1 ONE LIGHT-DAY AWAY",
-     "NASA confirms Voyager 1, launched in 1977, is now one light-day from Earth "
-     "\u2014 about 16 billion miles. A radio signal takes a full day to reach it."),
-    ("THE GULF", (178, 34, 34), "SAUDI ARABIA: DANGER HAS PASSED",
-     "Saudi Arabia says the danger has passed in three southern cities after "
-     "alerts, as the Gulf calms following days of strikes."),
-]
-grid_top = y + 28
-cell_w, cell_h = 480, 160
-for i, (tag, color, head, body) in enumerate(stories):
-    col, row = i % 2, i // 2
-    x = 32 if col == 0 else 512
-    yy = grid_top + row * cell_h
-    d.rectangle([x, yy, x + 6, yy + 18], fill=color)
-    d.text((x + 16, yy - 2), tag, font=SANS_B(17), fill=color)
-    yy2 = yy + 24
-    for ln in lines_for(head, SERIF_B(23), cell_w - 16):
-        d.text((x, yy2), ln, font=SERIF_B(23), fill=INK)
-        yy2 += 28
-    block(x, yy2 + 2, body, SANS(18), cell_w - 16, 24)
+    def face(self, filename, size):
+        return ImageFont.truetype(str(TYPE_DIR / filename), size)
 
-# --- Also on 19 November ----------------------------------------------------
-strip_y = grid_top + 3 * cell_h + 8
-d.rectangle([0, strip_y, W, strip_y + 64], fill=LIGHT)
-d.text((32, strip_y + 8), "ALSO ON 19 NOVEMBER", font=SANS_B(18), fill=NAVY)
-block(32, strip_y + 32,
-    "M\u00e9lenchon could win in France  \u2022  "
-    "Cocaine and pills seized in Libya  \u2022  "
-    "India-Japan defence talks  \u2022  Oil prices fall",
-    SANS(16), 960, 20)
+    def serif_b(self, size):
+        return self.face("DejaVuSerif-Bold.ttf", size)
 
-# --- Footer -----------------------------------------------------------------
-d.text((32, 992),
-       "Sources: Reuters  \u2022  AP  \u2022  BBC  \u2022  NASA  \u2022  The Hindu      "
-       "Events of 19 November 2026, in any time zone",
-       font=SANS(16), fill=GREY)
+    def sans(self, size):
+        return self.face("DejaVuSans.ttf", size)
 
-os.makedirs(os.path.dirname(OUT), exist_ok=True)
-img.save(OUT, "PNG", optimize=True)
-print(OUT, os.path.getsize(OUT), img.size)
+    def sans_b(self, size):
+        return self.face("DejaVuSans-Bold.ttf", size)
+
+    def fit_lines(self, text, font, max_width):
+        """Break text into lines no wider than max_width pixels."""
+        words = text.split()
+        lines = []
+        current = ""
+        for word in words:
+            candidate = (current + " " + word).strip()
+            if self.draw.textlength(candidate, font=font) <= max_width:
+                current = candidate
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        return lines
+
+    def paragraph(self, x, y, text, font, max_width, leading, fill=CHARCOAL):
+        """Draw wrapped text; return the y coordinate just below it."""
+        for line in self.fit_lines(text, font, max_width):
+            self.draw.text((x, y), line, font=font, fill=fill)
+            y += leading
+        return y
+
+    def kicker(self, x, y, label, color):
+        """A small coloured bar followed by an uppercase label."""
+        self.draw.rectangle([x, y + 2, x + 10, y + 16], fill=color)
+        self.draw.text((x + 18, y - 2), label, font=self.sans_b(18), fill=color)
+        return y + 26
+
+    def story(self, x, y, width, tag, tag_color, headline, body):
+        """One story: kicker, headline, body. Returns the y below it."""
+        y = self.kicker(x, y, tag, tag_color)
+        y = self.paragraph(x, y, headline, self.sans_b(21), width, 26)
+        y = self.paragraph(x, y + 6, body, self.sans(17), width, 22)
+        return y
+
+    def masthead(self):
+        self.draw.rectangle([0, 0, PAGE[0], 140], fill=NAVY)
+        self.draw.text((EDGE, 20), "THE WORLD IN ONE DAY", font=self.serif_b(54), fill="white")
+        self.draw.text(
+            (EDGE, 96),
+            "THURSDAY 19 NOVEMBER 2026  \u2022  THE DAY'S WORLD NEWS IN ONE IMAGE",
+            font=self.sans_b(19),
+            fill=AMBER,
+        )
+
+    def lead(self):
+        y = 158
+        y = self.kicker(EDGE, y, "LEAD  \u2014  SHENZHEN", CRIMSON)
+        y = self.paragraph(
+            EDGE, y,
+            "Trump, Xi and Putin sit down together for the first time in Shenzhen",
+            self.sans_b(33), PAGE[0] - 2 * EDGE, 40,
+        )
+        y = self.paragraph(
+            EDGE, y + 10,
+            "The three leaders open a first-ever trilateral summit in Shenzhen, with "
+            "nuclear weapons and the war in Iran at the top of the agenda. Ukraine "
+            "is kept off the table.",
+            self.sans(20), PAGE[0] - 2 * EDGE, 27,
+        )
+        return y
+
+    def grid(self, top):
+        col_w = (PAGE[0] - 2 * EDGE - COLUMN_GAP) // 2
+        left = EDGE
+        right = EDGE + col_w + COLUMN_GAP
+        pairs = [
+            (
+                ("GAMES", TEAL, "GTA VI opens worldwide to a 99 on Metacritic",
+                 "It unlocks at midnight in each market, New Zealand first, "
+                 "after $1.65 billion in pre-orders."),
+                ("WEATHER", PLUM, "Cyclone Akvan bears down on India's east coast",
+                 "The storm is set to cross the coast between Machilipatnam and Puri."),
+            ),
+            (
+                ("DIPLOMACY", NAVY, "Carney recalibrates Canada's ties with China",
+                 "Prime Minister Mark Carney leads a recalibration of the "
+                 "relationship with Beijing."),
+                ("TECHNOLOGY", CRIMSON, "Senators warn AI cyber threats outpace defences",
+                 "US lawmakers say AI-powered attacks are moving faster than the "
+                 "defences built to stop them."),
+            ),
+            (
+                ("SPACE", FOREST, "Voyager 1 is one light-day from home, NASA confirms",
+                 "The agency confirms on 19 November that the probe has reached "
+                 "one light-day from Earth."),
+                ("THE GULF", TEAL, "Saudi Arabia says the danger has passed",
+                 "Authorities say the threat to three southern cities is over."),
+            ),
+        ]
+        y = top
+        for left_story, right_story in pairs:
+            bottom_left = self.story(left, y, col_w, *left_story)
+            bottom_right = self.story(right, y, col_w, *right_story)
+            y = max(bottom_left, bottom_right) + 28
+        return y
+
+    def also(self, top):
+        self.draw.rectangle([0, top, PAGE[0], top + 92], fill=PALE)
+        self.draw.text((EDGE, top + 12), "ALSO ON 19 NOVEMBER", font=self.sans_b(18), fill=NAVY)
+        items = (
+            "M\u00e9lenchon could win in France  \u2022  Drug seizure in Libya  "
+            "\u2022  India\u2013Japan talks  \u2022  Oil prices fall"
+        )
+        self.paragraph(EDGE, top + 44, items, self.sans(17), PAGE[0] - 2 * EDGE, 24)
+        return top + 92
+
+    def footer(self, top):
+        self.draw.line([(EDGE, top), (PAGE[0] - EDGE, top)], fill=HAIRLINE, width=1)
+        left = "THURSDAY 19 NOVEMBER 2026"
+        right = "THE WORLD IN ONE DAY"
+        self.draw.text((EDGE, top + 14), left, font=self.sans_b(15), fill=MIDGREY)
+        w = self.draw.textlength(right, font=self.sans_b(15))
+        self.draw.text((PAGE[0] - EDGE - w, top + 14), right, font=self.sans_b(15), fill=MIDGREY)
+
+
+def main():
+    page = FrontPage()
+    page.masthead()
+    bottom = page.lead()
+    page.draw.line(
+        [(EDGE, bottom + 14), (PAGE[0] - EDGE, bottom + 14)], fill=HAIRLINE, width=1
+    )
+    grid_bottom = page.grid(bottom + 32)
+    also_bottom = page.also(grid_bottom + 16)
+    page.footer(also_bottom + 18)
+    page.img.save(OUTPUT, format="PNG")
+
+
+if __name__ == "__main__":
+    main()
